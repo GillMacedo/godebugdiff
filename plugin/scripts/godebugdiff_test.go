@@ -246,3 +246,45 @@ func run1(t *testing.T, name string, args ...string) string {
 	}
 	return string(out)
 }
+
+func TestFilterPackages(t *testing.T) {
+	r := &Result{
+		Binaries: []string{"example.com/app"},
+		Changes: []Change{
+			{Name: "http", Package: "net/http", ReachedBy: []string{"example.com/app"}},
+			{Name: "child", Package: "net/http/httputil", ReachedBy: []string{"example.com/app"}},
+			{Name: "tls", Package: "crypto/tls"},
+			{Name: "unknown", Package: ""},
+		},
+		reachCount: 2,
+	}
+	if err := filterPackages(r, " net/http,crypto/tls,net/http "); err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Changes) != 2 || r.Changes[0].Name != "http" || r.Changes[1].Name != "tls" || r.reachCount != 1 {
+		t.Fatalf("filter did not preserve exact matches and recount reach: %+v", r)
+	}
+	if !reflect.DeepEqual(r.Only, []string{"net/http", "crypto/tls"}) {
+		t.Fatalf("filter names = %v", r.Only)
+	}
+	if err := filterPackages(r, "net"); err != nil || len(r.Changes) != 0 || r.reachCount != 0 {
+		t.Fatalf("prefix must not match subpackages: %+v, %v", r, err)
+	}
+	var output bytes.Buffer
+	Print(&output, r)
+	if !strings.Contains(output.String(), "No GODEBUG defaults change in the selected packages.") {
+		t.Fatalf("empty filtered result needs scoped wording: %s", output.String())
+	}
+}
+
+func TestFilterPackagesValidation(t *testing.T) {
+	for _, input := range []string{",", "net/http,", " ,net/http"} {
+		if err := filterPackages(&Result{}, input); err == nil {
+			t.Errorf("expected empty package name in %q to be rejected", input)
+		}
+	}
+	r := &Result{Changes: []Change{{Name: "keep"}}, reachCount: 1}
+	if err := filterPackages(r, ""); err != nil || len(r.Changes) != 1 || r.reachCount != 1 {
+		t.Fatalf("omitted filter changed the result: %+v, %v", r, err)
+	}
+}

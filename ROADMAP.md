@@ -1,5 +1,8 @@
 # Roadmap
 
+## Available
+- Filter settings by exact package names with `--only` in text and JSON output
+
 ## Next
 - A Markdown output for pull request comments
 - Read the go line from go.work in workspace mode, instead of only noting it

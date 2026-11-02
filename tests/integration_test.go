@@ -309,3 +309,20 @@ func TestErrors(t *testing.T) {
 		t.Errorf("removed setting: %d %s", code, stderr)
 	}
 }
+
+func TestOnlyPackages(t *testing.T) {
+	needGo(t, 24)
+	r, code, stderr := diff(t, "../examples/shop", "--to", "1.24", "--only", "net/http,crypto/tls", "--fail")
+	if code != 1 || len(r.Changes) == 0 {
+		t.Fatalf("expected selected changes and exit 1, got %d: %s", code, stderr)
+	}
+	for _, change := range r.Changes {
+		if change.Package != "net/http" && change.Package != "crypto/tls" {
+			t.Errorf("unexpected package in filtered report: %s", change.Package)
+		}
+	}
+	r, code, stderr = diff(t, "../examples/shop", "--to", "1.24", "--only=example.com/not-imported", "--fail")
+	if code != 0 || len(r.Changes) != 0 {
+		t.Fatalf("excluded changes must not trigger --fail: %d, %+v, %s", code, r.Changes, stderr)
+	}
+}
