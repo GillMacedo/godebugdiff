@@ -34,6 +34,7 @@ from --from to --to, and which binaries import the affected packages.
 
   --from VERSION  go line to compare from (default: the one in go.mod)
   --to VERSION    go line to compare to (default: the installed toolchain)
+  --only PACKAGES comma-separated exact package names to include
   --tests         also check test binaries (always on for modules with no main package)
   --json          print the result as JSON
   --fail          exit 1 when a change reaches a package a binary imports
@@ -82,6 +83,7 @@ type Result struct {
 	TestsOnly  bool     `json:"testsOnly"`
 	Changes    []Change `json:"changes"`
 	Notes      []string `json:"notes,omitempty"`
+	Only       []string `json:"only,omitempty"`
 	reachCount int
 }
 
@@ -96,6 +98,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	from := fs.String("from", "", "")
 	to := fs.String("to", "", "")
 	tests := fs.Bool("tests", false, "")
+	only := fs.String("only", "", "")
 	asJSON := fs.Bool("json", false, "")
 	fail := fs.Bool("fail", false, "")
 	showVersion := fs.Bool("version", false, "")
@@ -119,6 +122,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "godebugdiff:", err)
 		return 2
 	}
+	if err := filterPackages(res, *only); err != nil {
+		fmt.Fprintln(stderr, "godebugdiff:", err)
+		return 2
+	}
 	if *asJSON {
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
@@ -132,11 +139,43 @@ func run(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
+// filterPackages applies the same exact-package selection to text, JSON and --fail.
+func filterPackages(r *Result, only string) error {
+	if only == "" {
+		return nil
+	}
+	selected := make(map[string]bool)
+	var packages []string
+	for _, name := range strings.Split(only, ",") {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return fmt.Errorf("--only requires comma-separated non-empty package names")
+		}
+		if !selected[name] {
+			packages = append(packages, name)
+			selected[name] = true
+		}
+	}
+	r.Only = packages
+	changes := make([]Change, 0)
+	r.reachCount = 0
+	for _, c := range r.Changes {
+		if selected[c.Package] {
+			changes = append(changes, c)
+			if len(c.ReachedBy) > 0 {
+				r.reachCount++
+			}
+		}
+	}
+	r.Changes = changes
+	return nil
+}
+
 // reorder moves flags before the directory argument, so
 // `godebugdiff DIR --to 1.24` works like `godebugdiff --to 1.24 DIR`.
 func reorder(args []string) []string {
 	var flags, rest []string
-	valued := map[string]bool{"from": true, "to": true}
+	valued := map[string]bool{"from": true, "to": true, "only": true}
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		if a == "--" {
@@ -753,13 +792,20 @@ func Print(w io.Writer, r *Result) {
 		count = strings.TrimSuffix(kind, "aries") + "ary"
 	}
 	fmt.Fprintf(w, "go %s -> %s in %s (%s, %d %s)\n", r.From, r.To, r.Module, r.Toolchain, len(r.Binaries), count)
+	if len(r.Only) > 0 {
+		fmt.Fprintf(w, "Packages: %s (exact matches; other changes omitted)\n", strings.Join(r.Only, ", "))
+	}
 	if len(r.Binaries) == 0 {
 		fmt.Fprintf(w, "\nNo main packages or tests found, so there's nothing to compare.\n")
 		printNotes(w, r)
 		return
 	}
 	if len(r.Changes) == 0 {
-		fmt.Fprintf(w, "\nNo GODEBUG defaults change.\n")
+		if len(r.Only) > 0 {
+			fmt.Fprintf(w, "\nNo GODEBUG defaults change in the selected packages.\n")
+		} else {
+			fmt.Fprintf(w, "\nNo GODEBUG defaults change.\n")
+		}
 		printNotes(w, r)
 		return
 	}

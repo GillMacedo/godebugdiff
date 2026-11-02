@@ -78,13 +78,14 @@ On a real project: [age](https://github.com/FiloSottile/age) at commit `b74dce4`
 
 ## Usage
 
-    godebugdiff [--from VERSION] [--to VERSION] [--tests] [--json] [--fail] [DIR]
+    godebugdiff [--from VERSION] [--to VERSION] [--tests] [--only PACKAGES] [--json] [--fail] [DIR]
 
 - `DIR` is the module root, the directory with go.mod. It defaults to `.`.
 - `--to` defaults to the installed toolchain's version, such as 1.27 for go1.27.3. It can't be newer than the toolchain, because older toolchains don't know about later settings.
 - `--from` defaults to the go line in go.mod. Pass the base branch's version to review a change that already raised it.
 - `--tests` adds test binaries. A module with no main package, such as a library, is checked through its test binaries automatically.
-- `--json` prints the full result. `--fail` exits 1 when a change reaches a package one of your binaries imports. Exit code 2 means bad usage, or the go command couldn't load the module.
+- `--only net/http,crypto/tls` includes only settings with those exact package names in text and JSON output. `--fail` considers only included settings. Package names can be separated by commas with optional whitespace; subpackages are not included automatically.
+- `--json` prints the result. `--fail` exits 1 when a change reaches a package one of your binaries imports. Exit code 2 means bad usage, or the go command couldn't load the module.
 
 In CI, on a pull request that changes go.mod:
 
