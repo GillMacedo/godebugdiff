@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -245,4 +246,30 @@ func run1(t *testing.T, name string, args ...string) string {
 		t.Fatal(err)
 	}
 	return string(out)
+}
+
+func TestWindowsOnly(t *testing.T) {
+	if !isWindowsOnly("winsymlink") || !isWindowsOnly("winreadlinkvolume") {
+		t.Fatal("win* settings should be Windows-only")
+	}
+	if isWindowsOnly("httpmuxgo121") || isWindowsOnly("asynctimerchan") {
+		t.Fatal("non-win settings must not be marked Windows-only")
+	}
+	c := Change{Name: "winsymlink", Package: "os", Before: "0", After: "1", WindowsOnly: true, ReachedBy: []string{"x"}}
+	var buf bytes.Buffer
+	Print(&buf, &Result{
+		Module: "x", From: "1.22", To: "1.23", Toolchain: "go1.23.0",
+		Binaries: []string{"x"}, Changes: []Change{c},
+	})
+	out := buf.String()
+	if !strings.Contains(out, "winsymlink") || !strings.Contains(out, "(Windows only)") {
+		t.Fatalf("text report missing Windows-only mark:\n%s", out)
+	}
+	enc, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(enc), `"windowsOnly":true`) {
+		t.Fatalf("JSON missing windowsOnly: %s", enc)
+	}
 }
