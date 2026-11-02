@@ -2,10 +2,11 @@
 // the go line in go.mod, and which of your binaries import the packages
 // each setting controls.
 //
-// It asks the installed Go toolchain: it copies go.mod to a temporary file
-// for each version, runs `go list -modfile` on both with the network off,
-// and compares each main package's DefaultGODEBUG. It never edits go.mod,
-// never builds or runs your code, and never uses the network.
+// It asks the installed Go toolchain: it copies go.mod (or go.work with
+// --work) to a temporary file for each version, runs `go list` on both with
+// the network off, and compares each main package's DefaultGODEBUG. It never
+// edits go.mod or go.work, never builds or runs your code, and never uses the
+// network.
 package main
 
 import (
@@ -27,14 +28,19 @@ import (
 
 const version = "0.1.0"
 
+// A go.work file without a go line is treated as Go 1.18 by the go command.
+const defaultWorkGo = "1.18"
+
 const usage = `usage: godebugdiff [flags] [DIR]
 
-Lists GODEBUG defaults that change when the go line in DIR/go.mod moves
-from --from to --to, and which binaries import the affected packages.
+Lists GODEBUG defaults that change when the go line in DIR/go.mod (or
+DIR/go.work with --work) moves from --from to --to, and which binaries
+import the affected packages.
 
-  --from VERSION  go line to compare from (default: the one in go.mod)
+  --from VERSION  go line to compare from (default: go.mod or go.work)
   --to VERSION    go line to compare to (default: the installed toolchain)
   --tests         also check test binaries (always on for modules with no main package)
+  --work          read the go line from DIR/go.work (workspace mode)
   --json          print the result as JSON
   --fail          exit 1 when a change reaches a package a binary imports
   --version       print the version
@@ -56,6 +62,7 @@ type Binary struct {
 	Godebug    map[string]string `json:"-"`
 	Deps       map[string]bool   `json:"-"`
 	Error      string            `json:"error,omitempty"`
+	Main       bool              `json:"-"` // package belongs to a main module
 }
 
 // Change is one GODEBUG setting whose default differs between the two go lines.
@@ -74,6 +81,7 @@ type Change struct {
 // Result is the full comparison.
 type Result struct {
 	Module     string   `json:"module"`
+	Workspace  bool     `json:"workspace,omitempty"`
 	Dir        string   `json:"dir"`
 	Toolchain  string   `json:"toolchain"`
 	From       string   `json:"from"`
@@ -96,6 +104,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	from := fs.String("from", "", "")
 	to := fs.String("to", "", "")
 	tests := fs.Bool("tests", false, "")
+	work := fs.Bool("work", false, "")
 	asJSON := fs.Bool("json", false, "")
 	fail := fs.Bool("fail", false, "")
 	showVersion := fs.Bool("version", false, "")
@@ -114,7 +123,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if fs.NArg() == 1 {
 		dir = fs.Arg(0)
 	}
-	res, err := Diff(dir, *from, *to, *tests)
+	res, err := Diff(dir, *from, *to, *tests, *work)
 	if err != nil {
 		fmt.Fprintln(stderr, "godebugdiff:", err)
 		return 2
@@ -174,26 +183,55 @@ func normalize(v string) string {
 }
 
 // Diff compares the default GODEBUG of every binary in dir between two go lines.
-func Diff(dir, from, to string, tests bool) (*Result, error) {
+// In workspace mode it reads the go line from dir/go.work instead of dir/go.mod.
+func Diff(dir, from, to string, tests, workspace bool) (*Result, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
 	}
-	gomod := filepath.Join(abs, "go.mod")
-	if _, err := os.Stat(gomod); err != nil {
-		return nil, fmt.Errorf("no go.mod in %s. Run it from a module root or pass the directory", abs)
+
+	var gomod, gowork string
+	var modInfo *modFile
+	var workInfo *workFile
+	if workspace {
+		gowork = filepath.Join(abs, "go.work")
+		if _, err := os.Stat(gowork); err != nil {
+			return nil, fmt.Errorf("no go.work in %s. Run it from a workspace root or pass the directory", abs)
+		}
+		workInfo, err = readWorkFile(abs, gowork)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		gomod = filepath.Join(abs, "go.mod")
+		if _, err := os.Stat(gomod); err != nil {
+			return nil, fmt.Errorf("no go.mod in %s. Run it from a module root or pass the directory", abs)
+		}
+		modInfo, err = readModFile(abs, gomod)
+		if err != nil {
+			return nil, err
+		}
 	}
-	modInfo, err := readModFile(abs, gomod)
-	if err != nil {
-		return nil, err
-	}
+
 	goroot, toolchain, err := goEnv(abs)
 	if err != nil {
 		return nil, err
 	}
-	res := &Result{Module: modInfo.Module.Path, Dir: dir, Toolchain: toolchain}
+	res := &Result{Dir: dir, Toolchain: toolchain, Workspace: workspace}
+	if workspace {
+		res.Module = "workspace"
+	} else {
+		res.Module = modInfo.Module.Path
+	}
 	if from == "" {
-		from = modInfo.Go
+		if workspace {
+			from = workInfo.Go
+			if from == "" {
+				from = defaultWorkGo
+			}
+		} else {
+			from = modInfo.Go
+		}
 	}
 	if to == "" {
 		to = strings.TrimPrefix(toolchain, "go")
@@ -225,6 +263,9 @@ func Diff(dir, from, to string, tests bool) (*Result, error) {
 
 	var updated []string
 	list := func(name, v string, tests bool) ([]Binary, error) {
+		if workspace {
+			return listAtWork(abs, gowork, filepath.Join(tmp, name), v, tests)
+		}
 		bins, up, err := listAt(abs, gomod, filepath.Join(tmp, name), v, tests)
 		if err != nil {
 			return nil, fmt.Errorf("with go %s: %v", v, err)
@@ -262,27 +303,45 @@ func Diff(dir, from, to string, tests bool) (*Result, error) {
 			res.reachCount++
 		}
 	}
+	subject := "This module"
+	if workspace {
+		subject = "This workspace"
+	}
 	if res.TestsOnly {
-		res.Notes = append(res.Notes, "This module has no main package, so these are its test binaries. A library's go line doesn't set GODEBUG for programs that import it: they use their own go.mod. Raising it does make those programs need Go "+to+" or newer, which raises their go line too.")
+		res.Notes = append(res.Notes, subject+" has no main package, so these are its test binaries. A library's go line doesn't set GODEBUG for programs that import it: they use their own go.mod. Raising it does make those programs need Go "+to+" or newer, which raises their go line too.")
 	}
 	fromMinor, _ := minor(from)
 	if fromMinor < 22 && toMinor >= 22 {
-		res.Notes = append(res.Notes, "Crossing Go 1.22 also changes the language: each loop iteration gets its own loop variable in this module's code. That isn't a GODEBUG setting, so it isn't listed above. See https://go.dev/blog/loopvar-preview.")
+		what := "this module's code"
+		if workspace {
+			what = "this workspace's code"
+		}
+		res.Notes = append(res.Notes, "Crossing Go 1.22 also changes the language: each loop iteration gets its own loop variable in "+what+". That isn't a GODEBUG setting, so it isn't listed above. See https://go.dev/blog/loopvar-preview.")
 	}
-	if modInfo.Toolchain != "" {
-		if tm, err := minor(modInfo.Toolchain); err == nil && tm < toMinor {
-			res.Notes = append(res.Notes, fmt.Sprintf("go.mod has \"toolchain %s\", which is older than go %s. Go ignores a toolchain line older than the go line, so remove or raise it with the bump.", modInfo.Toolchain, to))
+	toolchainLine, filename := "", ""
+	if workspace {
+		toolchainLine, filename = workInfo.Toolchain, "go.work"
+	} else {
+		toolchainLine, filename = modInfo.Toolchain, "go.mod"
+	}
+	if toolchainLine != "" {
+		if tm, err := minor(toolchainLine); err == nil && tm < toMinor {
+			res.Notes = append(res.Notes, fmt.Sprintf("%s has \"toolchain %s\", which is older than go %s. Go ignores a toolchain line older than the go line, so remove or raise it with the bump.", filename, toolchainLine, to))
 		}
 	}
-	if gw := goworkPath(abs); gw != "" {
-		res.Notes = append(res.Notes, "A go.work file is active ("+gw+"). In workspace mode, the go line in go.work sets GODEBUG defaults, not go.mod. These results ignore go.work.")
-	}
-	if len(modInfo.Godebug) > 0 {
-		var pins []string
-		for _, g := range modInfo.Godebug {
-			pins = append(pins, g.Key+"="+g.Value)
+	if workspace {
+		res.Notes = append(res.Notes, "In workspace mode, the go line in go.work sets the GODEBUG defaults; godebug lines in module go.mod files are ignored.")
+	} else {
+		if gw := goworkPath(abs); gw != "" {
+			res.Notes = append(res.Notes, "A go.work file is active ("+gw+"). In workspace mode, the go line in go.work sets GODEBUG defaults, not go.mod. These results ignore go.work.")
 		}
-		res.Notes = append(res.Notes, "go.mod already pins "+strings.Join(pins, ", ")+". Pinned settings don't change with the go line, so they aren't listed.")
+		if len(modInfo.Godebug) > 0 {
+			var pins []string
+			for _, g := range modInfo.Godebug {
+				pins = append(pins, g.Key+"="+g.Value)
+			}
+			res.Notes = append(res.Notes, "go.mod already pins "+strings.Join(pins, ", ")+". Pinned settings don't change with the go line, so they aren't listed.")
+		}
 	}
 	return res, nil
 }
@@ -307,6 +366,28 @@ func readModFile(dir, gomod string) (*modFile, error) {
 		m.Go = "1.16" // go.mod files with no go line are treated as Go 1.16
 	}
 	return &m, nil
+}
+
+type workFile struct {
+	Go        string
+	Toolchain string
+	Use       []struct{ DiskPath string }
+	Replace   []struct {
+		Old struct{ Path, Version string }
+		New struct{ Path, Version string }
+	}
+}
+
+func readWorkFile(dir, gowork string) (*workFile, error) {
+	out, err := goCmd(dir, "work", "edit", "-json", gowork)
+	if err != nil {
+		return nil, err
+	}
+	var w workFile
+	if err := json.Unmarshal(out, &w); err != nil {
+		return nil, fmt.Errorf("reading go work edit -json: %v", err)
+	}
+	return &w, nil
 }
 
 func goEnv(dir string) (goroot, version string, err error) {
@@ -359,9 +440,18 @@ func keepFlags(goflags string) string {
 }
 
 func goCmd(dir string, args ...string) ([]byte, error) {
+	return goCmdEnv(dir, baseEnv(true), args...)
+}
+
+// goCmdWork runs the go command with GOWORK pointing at work.
+func goCmdWork(dir, work string, args ...string) ([]byte, error) {
+	return goCmdEnv(dir, append(baseEnv(false), "GOWORK="+work), args...)
+}
+
+func goCmdEnv(dir string, env []string, args ...string) ([]byte, error) {
 	cmd := exec.Command("go", args...)
 	cmd.Dir = dir
-	cmd.Env = baseEnv(true)
+	cmd.Env = env
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -424,6 +514,127 @@ func copyMod(dir, gomod, tmpBase, goVersion string) (string, error) {
 	return mod, nil
 }
 
+// copyWork copies go.work and go.work.sum, sets the go line, and rewrites
+// relative use and local replace paths to absolute paths, because the copy
+// lives outside the workspace.
+func copyWork(dir, gowork, tmpBase, goVersion string) (string, error) {
+	data, err := os.ReadFile(gowork)
+	if err != nil {
+		return "", err
+	}
+	work := tmpBase + ".work"
+	if err := os.WriteFile(work, data, 0o600); err != nil {
+		return "", err
+	}
+	if _, err := goCmd(dir, "work", "edit", "-go="+goVersion, work); err != nil {
+		return "", err
+	}
+	info, err := readWorkFile(dir, gowork)
+	if err != nil {
+		return "", err
+	}
+	for _, u := range info.Use {
+		if u.DiskPath == "" || filepath.IsAbs(u.DiskPath) {
+			continue
+		}
+		abs := filepath.Join(dir, u.DiskPath)
+		if _, err := goCmd(dir, "work", "edit", "-dropuse="+u.DiskPath, work); err != nil {
+			return "", err
+		}
+		if _, err := goCmd(dir, "work", "edit", "-use="+abs, work); err != nil {
+			return "", err
+		}
+	}
+	for _, r := range info.Replace {
+		if r.New.Version != "" || r.New.Path == "" || filepath.IsAbs(r.New.Path) {
+			continue
+		}
+		old := r.Old.Path
+		if r.Old.Version != "" {
+			old += "@" + r.Old.Version
+		}
+		if _, err := goCmd(dir, "work", "edit", "-replace="+old+"="+filepath.Join(dir, r.New.Path), work); err != nil {
+			return "", err
+		}
+	}
+	sum, err := os.ReadFile(filepath.Join(dir, "go.work.sum"))
+	if err != nil {
+		sum = nil
+	}
+	if err := os.WriteFile(tmpBase+".work.sum", sum, 0o600); err != nil {
+		return "", err
+	}
+	return work, nil
+}
+
+// workModules returns the import path of each module in the workspace.
+func workModules(dir, work string) ([]string, error) {
+	out, err := goCmdWork(dir, work, "list", "-m", "-json")
+	if err != nil {
+		return nil, err
+	}
+	dec := json.NewDecoder(bytes.NewReader(out))
+	var mods []string
+	for {
+		var m struct {
+			Path string
+			Main bool
+		}
+		if err := dec.Decode(&m); err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, fmt.Errorf("reading go list -m output: %v", err)
+		}
+		if m.Main && m.Path != "" {
+			mods = append(mods, m.Path)
+		}
+	}
+	return mods, nil
+}
+
+// listAtWork copies go.work, sets the go line, and lists the binaries in every
+// workspace module.
+func listAtWork(dir, gowork, tmpBase, goVersion string, tests bool) ([]Binary, error) {
+	work, err := copyWork(dir, gowork, tmpBase, goVersion)
+	if err != nil {
+		return nil, err
+	}
+	mods, err := workModules(dir, work)
+	if err != nil {
+		return nil, cleanErr(err)
+	}
+	seen := map[string]Binary{}
+	for _, mod := range mods {
+		args := []string{"list", "-e", "-json=ImportPath,Name,DefaultGODEBUG,Deps,Error,DepsErrors,ForTest,Module"}
+		if tests {
+			args = append(args, "-test")
+		}
+		args = append(args, mod+"/...")
+		out, err := goCmdWork(dir, work, args...)
+		if err != nil {
+			if strings.Contains(err.Error(), "updates to go.mod needed") {
+				return nil, fmt.Errorf("the go command needs to update a module's go.mod; run `go mod tidy` in that module first. godebugdiff never edits module files: %v", err)
+			}
+			return nil, cleanErr(err)
+		}
+		bins, err := parseList(out, tests)
+		if err != nil {
+			return nil, err
+		}
+		for _, b := range bins {
+			if b.Main {
+				seen[b.ImportPath] = b
+			}
+		}
+	}
+	bins := make([]Binary, 0, len(seen))
+	for _, b := range seen {
+		bins = append(bins, b)
+	}
+	sort.Slice(bins, func(i, j int) bool { return bins[i].ImportPath < bins[j].ImportPath })
+	return bins, nil
+}
+
 func listArgs(mod string, tests, update bool) []string {
 	args := []string{"list", "-e", "-modfile=" + mod, "-json=ImportPath,Name,DefaultGODEBUG,Deps,Error,DepsErrors,ForTest"}
 	if update {
@@ -435,11 +646,15 @@ func listArgs(mod string, tests, update bool) []string {
 	return append(args, "./...")
 }
 
-var tmpModRE = regexp.MustCompile(`[^\s:]*godebugdiff[0-9]+[/\\](?:from|to)\.mod`)
+var (
+	tmpModRE  = regexp.MustCompile(`[^\s:]*godebugdiff[0-9]+[/\\](?:from|to)\.mod`)
+	tmpWorkRE = regexp.MustCompile(`[^\s:]*godebugdiff[0-9]+[/\\](?:from|to)\.work(?:\.sum)?`)
+)
 
-// cleanErr replaces the temporary go.mod path in toolchain errors.
+// cleanErr replaces temporary go.mod and go.work paths in toolchain errors.
 func cleanErr(err error) error {
 	msg := tmpModRE.ReplaceAllString(err.Error(), "go.mod")
+	msg = tmpWorkRE.ReplaceAllString(msg, "go.work")
 	if strings.Contains(msg, "GOPROXY=off") || strings.Contains(msg, "module lookup disabled") {
 		msg += "\nSome modules aren't in the module cache. Run `go mod download` first. godebugdiff never downloads."
 	}
@@ -452,6 +667,7 @@ type listPkg struct {
 	DefaultGODEBUG string
 	Deps           []string
 	ForTest        string
+	Module         *struct{ Main bool }
 	Error          *struct{ Err string }
 	DepsErrors     []struct{ Err string }
 }
@@ -476,7 +692,7 @@ func parseList(out []byte, tests bool) ([]Binary, error) {
 		if isTest && !tests {
 			continue
 		}
-		b := Binary{ImportPath: p.ImportPath, Godebug: parseGodebug(p.DefaultGODEBUG), Deps: map[string]bool{}}
+		b := Binary{ImportPath: p.ImportPath, Godebug: parseGodebug(p.DefaultGODEBUG), Deps: map[string]bool{}, Main: p.Module != nil && p.Module.Main}
 		for _, d := range p.Deps {
 			b.Deps[d] = true
 		}
@@ -752,7 +968,11 @@ func Print(w io.Writer, r *Result) {
 	if len(r.Binaries) == 1 {
 		count = strings.TrimSuffix(kind, "aries") + "ary"
 	}
-	fmt.Fprintf(w, "go %s -> %s in %s (%s, %d %s)\n", r.From, r.To, r.Module, r.Toolchain, len(r.Binaries), count)
+	where := r.Module
+	if r.Workspace {
+		where = "workspace"
+	}
+	fmt.Fprintf(w, "go %s -> %s in %s (%s, %d %s)\n", r.From, r.To, where, r.Toolchain, len(r.Binaries), count)
 	if len(r.Binaries) == 0 {
 		fmt.Fprintf(w, "\nNo main packages or tests found, so there's nothing to compare.\n")
 		printNotes(w, r)
@@ -807,18 +1027,31 @@ func Print(w io.Writer, r *Result) {
 			fmt.Fprintf(w, "  %s (%s)\n", c.Name, pkg)
 		}
 	}
+	pinChanges := reached
+	if !r.Workspace {
+		// go.work has no godebug lines, and //go:debug only affects binaries,
+		// so a workspace can't pin settings that control the go command.
+		pinChanges = append(pinChanges, gocmd...)
+	}
 	var pins []string
-	for _, c := range append(reached, gocmd...) {
+	for _, c := range pinChanges {
 		if c.Before != "" && c.After == "" {
 			pins = append(pins, c.Name+"="+c.Before)
 		}
 	}
 	if len(pins) > 0 {
-		fmt.Fprintf(w, "\nTo keep the old behavior of a setting after the bump, pin it in go.mod:\n\n    godebug (\n")
-		for _, p := range pins {
-			fmt.Fprintf(w, "        %s\n", p)
+		if r.Workspace {
+			fmt.Fprintf(w, "\nTo keep the old behavior of a setting after the bump, add its //go:debug directive to each main package that needs it, or set GODEBUG at run time:\n\n")
+			for _, p := range pins {
+				fmt.Fprintf(w, "    //go:debug %s\n", p)
+			}
+		} else {
+			fmt.Fprintf(w, "\nTo keep the old behavior of a setting after the bump, pin it in go.mod:\n\n    godebug (\n")
+			for _, p := range pins {
+				fmt.Fprintf(w, "        %s\n", p)
+			}
+			fmt.Fprintf(w, "    )\n")
 		}
-		fmt.Fprintf(w, "    )\n")
 	}
 	printNotes(w, r)
 }

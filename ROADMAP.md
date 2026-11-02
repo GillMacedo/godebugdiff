@@ -2,7 +2,6 @@
 
 ## Next
 - A Markdown output for pull request comments
-- Read the go line from go.work in workspace mode, instead of only noting it
 - Show which `godebug` pins in go.mod are already the default at the new version, so they can be removed
 
 ## Later
