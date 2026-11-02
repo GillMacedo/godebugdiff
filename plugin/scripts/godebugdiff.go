@@ -60,15 +60,16 @@ type Binary struct {
 
 // Change is one GODEBUG setting whose default differs between the two go lines.
 type Change struct {
-	Name      string   `json:"name"`
-	Package   string   `json:"package"`
-	Changed   int      `json:"changedIn,omitempty"`
-	Before    string   `json:"before"` // value, or "" for the toolchain default
-	After     string   `json:"after"`
-	ReachedBy []string `json:"reachedBy"` // binaries that import Package
-	GoCommand bool     `json:"goCommand"` // the setting controls the go command, not binaries
-	Doc       string   `json:"doc,omitempty"`
-	URL       string   `json:"url,omitempty"`
+	Name        string   `json:"name"`
+	Package     string   `json:"package"`
+	Changed     int      `json:"changedIn,omitempty"`
+	Before      string   `json:"before"` // value, or "" for the toolchain default
+	After       string   `json:"after"`
+	ReachedBy   []string `json:"reachedBy"`             // binaries that import Package
+	GoCommand   bool     `json:"goCommand"`             // the setting controls the go command, not binaries
+	WindowsOnly bool     `json:"windowsOnly,omitempty"` // name starts with win; Linux services can skip
+	Doc         string   `json:"doc,omitempty"`
+	URL         string   `json:"url,omitempty"`
 }
 
 // Result is the full comparison.
@@ -552,6 +553,7 @@ func compare(before, after []Binary, table map[string]Setting, docs map[string][
 				s := table[k]
 				c = &Change{Name: k, Package: s.Package, Changed: s.Changed, Before: bv, After: av, ReachedBy: []string{}}
 				c.GoCommand = strings.HasPrefix(s.Package, "cmd/")
+				c.WindowsOnly = isWindowsOnly(k)
 				if d, ok := pickDoc(docs[k], s.Changed); ok {
 					c.Doc, c.URL = d.Text, d.URL
 					if c.Changed == 0 {
@@ -779,7 +781,7 @@ func Print(w io.Writer, r *Result) {
 		len(reached), plural(len(reached), "reaches", "reach"), kind)
 	for _, c := range reached {
 		fmt.Fprintln(w)
-		fmt.Fprintf(w, "%s  %s -> %s  %s, %s\n", c.Name, value(c.Before), value(c.After), changedIn(c), c.Package)
+		fmt.Fprintf(w, "%s  %s -> %s  %s, %s%s\n", c.Name, value(c.Before), value(c.After), changedIn(c), c.Package, windowsOnlyNote(c))
 		fmt.Fprintf(w, "    imported by %s\n", who(c.ReachedBy, len(r.Binaries), kind))
 		if c.Doc != "" {
 			fmt.Fprintf(w, "    %s\n", c.Doc)
@@ -791,7 +793,7 @@ func Print(w io.Writer, r *Result) {
 	if len(gocmd) > 0 {
 		fmt.Fprintf(w, "\nChanges the go command, not your %s:\n", kind)
 		for _, c := range gocmd {
-			fmt.Fprintf(w, "  %s  %s -> %s  %s\n", c.Name, value(c.Before), value(c.After), changedIn(c))
+			fmt.Fprintf(w, "  %s  %s -> %s  %s%s\n", c.Name, value(c.Before), value(c.After), changedIn(c), windowsOnlyNote(c))
 			if c.Doc != "" {
 				fmt.Fprintf(w, "    %s\n", c.Doc)
 			}
@@ -804,7 +806,7 @@ func Print(w io.Writer, r *Result) {
 			if pkg == "" {
 				pkg = "package unknown"
 			}
-			fmt.Fprintf(w, "  %s (%s)\n", c.Name, pkg)
+			fmt.Fprintf(w, "  %s (%s)%s\n", c.Name, pkg, windowsOnlyNote(c))
 		}
 	}
 	var pins []string
@@ -844,6 +846,17 @@ func who(bins []string, total int, kind string) string {
 		return strings.Join(bins[:4], ", ") + fmt.Sprintf(" and %d more", len(bins)-4)
 	}
 	return strings.Join(bins, ", ")
+}
+
+func isWindowsOnly(name string) bool {
+	return strings.HasPrefix(name, "win")
+}
+
+func windowsOnlyNote(c Change) string {
+	if !c.WindowsOnly {
+		return ""
+	}
+	return " (Windows only)"
 }
 
 func plural(n int, one, many string) string {
