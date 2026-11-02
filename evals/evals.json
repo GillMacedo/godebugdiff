@@ -24,5 +24,14 @@
       "Explains that only GODEBUG defaults are covered",
       "Doesn't claim the upgrade is safe"
     ]
+  },
+  {
+    "skills": ["checking-go-version-bumps"],
+    "query": "We use a go.work workspace. I want to raise its go line from 1.21 to 1.24. What changes?",
+    "expected_behavior": [
+      "Runs godebugdiff.go with --work --to 1.24 on the workspace root",
+      "Reads the go line from go.work, not a module go.mod",
+      "Says that workspace pins use //go:debug or GODEBUG because go.work has no godebug lines"
+    ]
   }
 ]

@@ -1,6 +1,6 @@
 {
   "name": "godebugdiff-marketplace",
-  "description": "Marketplace for godebugdiff, which lists the GODEBUG defaults that change when you raise the go line in go.mod.",
+  "description": "Marketplace for godebugdiff, which lists the GODEBUG defaults that change when you raise the go line in go.mod or go.work.",
   "owner": {
     "name": "Giulliano Macedo"
   },
@@ -8,7 +8,7 @@
     {
       "name": "godebugdiff",
       "source": "./plugin",
-      "description": "List the GODEBUG behavior defaults that change when you raise the go line in go.mod, and which binaries they reach."
+      "description": "List the GODEBUG behavior defaults that change when you raise the go line in go.mod or go.work, and which binaries they reach."
     }
   ]
 }

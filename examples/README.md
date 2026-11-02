@@ -6,6 +6,7 @@ All modules here are made up and use only the standard library.
 - `shop/`: go 1.21, two binaries. `cmd/api` serves HTTP and `cmd/worker` only imports `fmt` and `math/rand`, so most changes reach only the API. `shop-1.21-to-1.24.txt` is its real output, from `make examples`.
 - `pinned/`: go 1.21 with `godebug default=go1.21`, so raising the go line changes no defaults. This is the healthy case.
 - `ledgerlib/`: a library with no main package, checked through its test binary.
+- `workspace/`: a two-module workspace on go 1.21. `app` serves HTTP and `worker` imports `math/rand`; `go.work` uses relative paths. `godebugdiff --work --to 1.24 examples/workspace` reads the go line from `go.work`.
 
 ## real/
 

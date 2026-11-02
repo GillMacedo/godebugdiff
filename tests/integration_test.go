@@ -18,6 +18,7 @@ import (
 
 type result struct {
 	Module    string
+	Workspace bool
 	From, To  string
 	Binaries  []string
 	TestsOnly bool
@@ -143,6 +144,52 @@ func TestShop(t *testing.T) {
 	after, _ := os.ReadFile("../examples/shop/go.mod")
 	if !bytes.Equal(before, after) {
 		t.Error("godebugdiff changed examples/shop/go.mod")
+	}
+}
+
+func TestWorkspace(t *testing.T) {
+	needGo(t, 24)
+	before, _ := os.ReadFile("../examples/workspace/go.work")
+	r, code, stderr := diff(t, "--work", "--to", "1.24", "--fail", "../examples/workspace")
+	if code != 1 {
+		t.Fatalf("--fail should exit 1 when changes reach a binary, got %d: %s", code, stderr)
+	}
+	if !r.Workspace || r.Module != "workspace" || r.From != "1.21" || r.To != "1.24" {
+		t.Fatalf("header = %+v", r)
+	}
+	wantBins := []string{"example.com/workspace/app", "example.com/workspace/worker"}
+	if !reflect.DeepEqual(r.Binaries, wantBins) {
+		t.Fatalf("binaries = %v, want %v", r.Binaries, wantBins)
+	}
+	idx := byName(r)
+	app := []string{"example.com/workspace/app"}
+	both := wantBins
+	for name, want := range map[string][]string{
+		"httpmuxgo121": app,
+		"randseednop":  both,
+	} {
+		i, ok := idx[name]
+		if !ok {
+			t.Errorf("%s missing", name)
+			continue
+		}
+		if !reflect.DeepEqual(r.Changes[i].ReachedBy, want) {
+			t.Errorf("%s reached by %v, want %v", name, r.Changes[i].ReachedBy, want)
+		}
+	}
+	if !strings.Contains(strings.Join(r.Notes, " "), "go line in go.work") {
+		t.Errorf("notes = %v", r.Notes)
+	}
+	after, _ := os.ReadFile("../examples/workspace/go.work")
+	if !bytes.Equal(before, after) {
+		t.Error("godebugdiff changed examples/workspace/go.work")
+	}
+	out, err := exec.Command(bin, "--work", "--to", "1.24", "../examples/workspace").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), "go 1.21 -> 1.24 in workspace") || !strings.Contains(string(out), "//go:debug") {
+		t.Errorf("output:\n%s", out)
 	}
 }
 
@@ -300,6 +347,9 @@ func TestErrors(t *testing.T) {
 	}
 	if _, code, stderr := diff(t, "../examples"); code != 2 || !strings.Contains(stderr, "no go.mod") {
 		t.Errorf("no go.mod: %d %s", code, stderr)
+	}
+	if _, code, stderr := diff(t, "--work", "../examples"); code != 2 || !strings.Contains(stderr, "no go.work") {
+		t.Errorf("no go.work: %d %s", code, stderr)
 	}
 	// A godebug line for a removed setting is an error from the go command.
 	dir := t.TempDir()
