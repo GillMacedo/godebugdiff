@@ -1,0 +1,13 @@
+{
+  "name": "godebugdiff",
+  "version": "0.1.0",
+  "description": "Before you raise the go line in go.mod, list the GODEBUG behavior defaults that change, which binaries import each affected package, and the godebug lines that keep the old behavior.",
+  "author": {
+    "name": "Giulliano Macedo",
+    "url": "https://github.com/GillMacedo"
+  },
+  "homepage": "https://github.com/GillMacedo/godebugdiff",
+  "repository": "https://github.com/GillMacedo/godebugdiff",
+  "license": "MIT",
+  "keywords": ["go", "golang", "godebug", "go-mod", "go-upgrade", "go-version", "migration", "backwards-compatibility"]
+}

@@ -1,0 +1,28 @@
+[
+  {
+    "skills": ["checking-go-version-bumps"],
+    "query": "I want to bump our go.mod from go 1.21 to go 1.24. What changes?",
+    "expected_behavior": [
+      "Runs godebugdiff.go with --to 1.24 on the module",
+      "For each change that reaches a binary, searches the code for the API the setting names and says whether it's used",
+      "Doesn't edit go.mod unless asked"
+    ]
+  },
+  {
+    "skills": ["checking-go-version-bumps"],
+    "query": "This PR raises the go directive from 1.22 to 1.25. Anything to worry about?",
+    "expected_behavior": [
+      "Runs godebugdiff.go with --from 1.22 --to 1.25",
+      "Mentions runtime settings like containermaxprocs that apply to every binary",
+      "Says the tool only covers GODEBUG defaults, not every release note change"
+    ]
+  },
+  {
+    "skills": ["checking-go-version-bumps"],
+    "query": "godebugdiff says nothing changes. So the Go upgrade is safe, right?",
+    "expected_behavior": [
+      "Explains that only GODEBUG defaults are covered",
+      "Doesn't claim the upgrade is safe"
+    ]
+  }
+]

@@ -1,0 +1,36 @@
+go 1.25.0 -> 1.27 in filippo.io/age (go1.27.3, 8 binaries)
+
+6 GODEBUG defaults change. 4 reach a package your binaries import.
+
+cryptocustomrand  1 -> default  Go 1.26, crypto
+    imported by filippo.io/age/cmd/age, filippo.io/age/cmd/age-keygen, filippo.io/age/cmd/age-plugin-batchpass, filippo.io/age/extra/age-plugin-pq and 3 more
+    Go 1.26 added a new cryptocustomrand setting that controls whether most crypto/... APIs ignore the random io.Reader parameter.
+    https://go.dev/doc/godebug#go-126
+
+urlstrictcolons  0 -> default  Go 1.26, net/url
+    imported by filippo.io/age/cmd/age
+    Go 1.26 added a new urlstrictcolons setting that controls whether net/url.Parse allows malformed hostnames containing colons outside of a bracketed IPv6 address.
+    https://go.dev/doc/godebug#go-126
+
+tracebacklabels  0 -> default  Go 1.27, runtime
+    imported by all 8 binaries
+    Go 1.26 added a new tracebacklabels setting that controls the inclusion of goroutine labels set through the the runtime/pprof package.
+    https://go.dev/doc/godebug#go-126
+
+x509sslcertoverrideplatform  0 -> default  Go 1.27, crypto/x509
+    imported by filippo.io/age/cmd/age
+    Go 1.27 added a new x509sslcertoverrideplatform setting that controls whether crypto/x509 will load roots from disk on Windows and Darwin when SSL_CERT_FILE or SSL_CERT_DIR are set.
+    https://go.dev/doc/godebug#go-127
+
+No binary imports the package, so no effect:
+  httpservecontentmaxranges (net/http)
+  tlssecpmlkem (crypto/tls)
+
+To keep the old behavior of a setting after the bump, pin it in go.mod:
+
+    godebug (
+        cryptocustomrand=1
+        urlstrictcolons=0
+        tracebacklabels=0
+        x509sslcertoverrideplatform=0
+    )

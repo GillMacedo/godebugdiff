@@ -1,0 +1,74 @@
+go 1.24.0 -> 1.27 in github.com/rakyll/hey (go1.27.3, 1 binary)
+
+11 GODEBUG defaults change. 11 reach a package your binaries import.
+
+containermaxprocs  0 -> default  Go 1.25, runtime
+    imported by github.com/rakyll/hey
+    Go 1.25 added a new containermaxprocs setting that controls whether the Go runtime will consider cgroup CPU limits when setting the default GOMAXPROCS.
+    https://go.dev/doc/godebug#go-125
+
+decoratemappings  0 -> default  Go 1.25, runtime
+    imported by github.com/rakyll/hey
+    Go 1.25 added a new decoratemappings setting that controls whether the Go runtime annotates OS anonymous memory mappings with context about their purpose.
+    https://go.dev/doc/godebug#go-125
+
+tlssha1  1 -> default  Go 1.25, crypto/tls
+    imported by github.com/rakyll/hey
+    Go 1.25 disabled SHA-1 signature algorithms in TLS 1.2 according to RFC 9155.
+    https://go.dev/doc/godebug#go-125
+
+updatemaxprocs  0 -> default  Go 1.25, runtime
+    imported by github.com/rakyll/hey
+    Go 1.25 added a new updatemaxprocs setting that controls whether the Go runtime will periodically update GOMAXPROCS for new CPU affinity or cgroup limits.
+    https://go.dev/doc/godebug#go-125
+
+x509sha256skid  0 -> default  Go 1.25, crypto/x509
+    imported by github.com/rakyll/hey
+    Go 1.25 switched to SHA-256 to fill in missing SubjectKeyId in crypto/x509.CreateCertificate.
+    https://go.dev/doc/godebug#go-125
+
+cryptocustomrand  1 -> default  Go 1.26, crypto
+    imported by github.com/rakyll/hey
+    Go 1.26 added a new cryptocustomrand setting that controls whether most crypto/... APIs ignore the random io.Reader parameter.
+    https://go.dev/doc/godebug#go-126
+
+httpservecontentmaxranges  1 -> default  Go 1.26, net/http
+    imported by github.com/rakyll/hey
+    Go 1.28 changed net/http.FileServer, net/http.FileServerFS, net/http.ServeContent, net/http.ServeFile, and net/http.ServeFileFS to limit the maximum number of ranges in a Range header.
+    https://go.dev/doc/godebug#go-128
+
+tlssecpmlkem  0 -> default  Go 1.26, crypto/tls
+    imported by github.com/rakyll/hey
+    Go 1.26 enabled two additional post-quantum key exchange mechanisms: SecP256r1MLKEM768 and SecP384r1MLKEM1024.
+    https://go.dev/doc/godebug#go-126
+
+urlstrictcolons  0 -> default  Go 1.26, net/url
+    imported by github.com/rakyll/hey
+    Go 1.26 added a new urlstrictcolons setting that controls whether net/url.Parse allows malformed hostnames containing colons outside of a bracketed IPv6 address.
+    https://go.dev/doc/godebug#go-126
+
+tracebacklabels  0 -> default  Go 1.27, runtime
+    imported by github.com/rakyll/hey
+    Go 1.26 added a new tracebacklabels setting that controls the inclusion of goroutine labels set through the the runtime/pprof package.
+    https://go.dev/doc/godebug#go-126
+
+x509sslcertoverrideplatform  0 -> default  Go 1.27, crypto/x509
+    imported by github.com/rakyll/hey
+    Go 1.27 added a new x509sslcertoverrideplatform setting that controls whether crypto/x509 will load roots from disk on Windows and Darwin when SSL_CERT_FILE or SSL_CERT_DIR are set.
+    https://go.dev/doc/godebug#go-127
+
+To keep the old behavior of a setting after the bump, pin it in go.mod:
+
+    godebug (
+        containermaxprocs=0
+        decoratemappings=0
+        tlssha1=1
+        updatemaxprocs=0
+        x509sha256skid=0
+        cryptocustomrand=1
+        httpservecontentmaxranges=1
+        tlssecpmlkem=0
+        urlstrictcolons=0
+        tracebacklabels=0
+        x509sslcertoverrideplatform=0
+    )

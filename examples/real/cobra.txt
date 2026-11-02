@@ -1,0 +1,113 @@
+go 1.15 -> 1.27 in github.com/spf13/cobra (go1.27.3, 2 test binaries)
+
+28 GODEBUG defaults change. 13 reach a package your test binaries import.
+
+netedns0  0 -> default  Go 1.19, net
+    imported by all 2 test binaries
+    Go 1.19 started sending EDNS0 additional headers on DNS requests.
+    https://go.dev/doc/godebug#go-119
+
+panicnil  1 -> default  Go 1.21, runtime
+    imported by all 2 test binaries
+    Go 1.21 made it a run-time error to call panic with a nil interface value, controlled by the panicnil setting.
+    https://go.dev/doc/godebug#go-121
+
+winreadlinkvolume  0 -> default  Go 1.23, os
+    imported by all 2 test binaries
+    Go 1.23 changed os.Readlink and filepath.EvalSymlinks to avoid trying to normalize volumes to drive letters, which was not always even possible.
+    https://go.dev/doc/godebug#go-123
+
+winsymlink  0 -> default  Go 1.23, os
+    imported by all 2 test binaries
+    Go 1.23 changed the mode bits reported by os.Lstat and os.Stat for reparse points, which can be controlled with the winsymlink setting.
+    https://go.dev/doc/godebug#go-123
+
+multipathtcp  0 -> default  Go 1.24, net
+    imported by all 2 test binaries
+    Go 1.24 added new values for the multipathtcp setting.
+    https://go.dev/doc/godebug#go-124
+
+randseednop  0 -> default  Go 1.24, math/rand
+    imported by all 2 test binaries
+    Go 1.24 changed the global math/rand.Seed to be a no-op.
+    https://go.dev/doc/godebug#go-124
+
+urlmaxqueryparams  0 -> default  Go 1.24, net/url
+    imported by all 2 test binaries
+    Go 1.26 added a new urlmaxqueryparams setting that controls the maximum number of query parameters that net/url will accept when parsing a URL-encoded query string.
+    https://go.dev/doc/godebug#go-126
+
+containermaxprocs  0 -> default  Go 1.25, runtime
+    imported by all 2 test binaries
+    Go 1.25 added a new containermaxprocs setting that controls whether the Go runtime will consider cgroup CPU limits when setting the default GOMAXPROCS.
+    https://go.dev/doc/godebug#go-125
+
+decoratemappings  0 -> default  Go 1.25, runtime
+    imported by all 2 test binaries
+    Go 1.25 added a new decoratemappings setting that controls whether the Go runtime annotates OS anonymous memory mappings with context about their purpose.
+    https://go.dev/doc/godebug#go-125
+
+updatemaxprocs  0 -> default  Go 1.25, runtime
+    imported by all 2 test binaries
+    Go 1.25 added a new updatemaxprocs setting that controls whether the Go runtime will periodically update GOMAXPROCS for new CPU affinity or cgroup limits.
+    https://go.dev/doc/godebug#go-125
+
+cryptocustomrand  1 -> default  Go 1.26, crypto
+    imported by all 2 test binaries
+    Go 1.26 added a new cryptocustomrand setting that controls whether most crypto/... APIs ignore the random io.Reader parameter.
+    https://go.dev/doc/godebug#go-126
+
+urlstrictcolons  0 -> default  Go 1.26, net/url
+    imported by all 2 test binaries
+    Go 1.26 added a new urlstrictcolons setting that controls whether net/url.Parse allows malformed hostnames containing colons outside of a bracketed IPv6 address.
+    https://go.dev/doc/godebug#go-126
+
+tracebacklabels  0 -> default  Go 1.27, runtime
+    imported by all 2 test binaries
+    Go 1.26 added a new tracebacklabels setting that controls the inclusion of goroutine labels set through the the runtime/pprof package.
+    https://go.dev/doc/godebug#go-126
+
+Changes the go command, not your test binaries:
+  gotestjsonbuildtext  1 -> default  Go 1.24
+    Go 1.24 changed the behavior of go test -json to emit build errors as JSON instead of text.
+
+No test binary imports the package, so no effect:
+  httplaxcontentlength (net/http)
+  httpmuxgo121 (net/http)
+  httpservecontentkeepheaders (net/http)
+  x509negativeserial (crypto/x509)
+  httpcookiemaxnum (net/http)
+  rsa1024min (crypto/rsa)
+  tlsmlkem (crypto/tls)
+  x509rsacrt (crypto/x509)
+  x509usepolicies (crypto/x509)
+  tlssha1 (crypto/tls)
+  x509sha256skid (crypto/x509)
+  httpservecontentmaxranges (net/http)
+  tlssecpmlkem (crypto/tls)
+  x509sslcertoverrideplatform (crypto/x509)
+
+To keep the old behavior of a setting after the bump, pin it in go.mod:
+
+    godebug (
+        netedns0=0
+        panicnil=1
+        winreadlinkvolume=0
+        winsymlink=0
+        multipathtcp=0
+        randseednop=0
+        urlmaxqueryparams=0
+        containermaxprocs=0
+        decoratemappings=0
+        updatemaxprocs=0
+        cryptocustomrand=1
+        urlstrictcolons=0
+        tracebacklabels=0
+        gotestjsonbuildtext=1
+    )
+
+Note: With go 1.27, the go command needed to add requirements to go.mod, as `go mod tidy` would. godebugdiff did that in a temporary copy from the module cache, so expect go.mod changes with the bump.
+
+Note: This module has no main package, so these are its test binaries. A library's go line doesn't set GODEBUG for programs that import it: they use their own go.mod. Raising it does make those programs need Go 1.27 or newer, which raises their go line too.
+
+Note: Crossing Go 1.22 also changes the language: each loop iteration gets its own loop variable in this module's code. That isn't a GODEBUG setting, so it isn't listed above. See https://go.dev/blog/loopvar-preview.

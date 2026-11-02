@@ -1,0 +1,99 @@
+go 1.21 -> 1.24 in example.com/shop (go1.27.3, 2 binaries)
+
+15 GODEBUG defaults change. 14 reach a package your binaries import.
+
+httplaxcontentlength  1 -> default  Go 1.22, net/http
+    imported by example.com/shop/cmd/api
+    Go 1.22 made it an error for a request or response read by a net/http client or server to have an empty Content-Length header.
+    https://go.dev/doc/godebug#go-122
+
+httpmuxgo121  1 -> default  Go 1.22, net/http
+    imported by example.com/shop/cmd/api
+    Go 1.22 changed the behavior of ServeMux to accept extended patterns and unescape both patterns and request paths by segment.
+    https://go.dev/doc/godebug#go-122
+
+httpservecontentkeepheaders  1 -> default  Go 1.23, net/http
+    imported by example.com/shop/cmd/api
+    Go 1.23 changed net/http.ServeContent, net/http.ServeFile, and net/http.ServeFS to remove Cache-Control, Content-Encoding, Etag, and Last-Modified headers when serving an error.
+    https://go.dev/doc/godebug#go-123
+
+winreadlinkvolume  0 -> default  Go 1.23, os
+    imported by all 2 binaries
+    Go 1.23 changed os.Readlink and filepath.EvalSymlinks to avoid trying to normalize volumes to drive letters, which was not always even possible.
+    https://go.dev/doc/godebug#go-123
+
+winsymlink  0 -> default  Go 1.23, os
+    imported by all 2 binaries
+    Go 1.23 changed the mode bits reported by os.Lstat and os.Stat for reparse points, which can be controlled with the winsymlink setting.
+    https://go.dev/doc/godebug#go-123
+
+x509negativeserial  1 -> default  Go 1.23, crypto/x509
+    imported by example.com/shop/cmd/api
+    Go 1.23 changed the behavior of crypto/x509.ParseCertificate to reject serial numbers that are negative.
+    https://go.dev/doc/godebug#go-123
+
+httpcookiemaxnum  0 -> default  Go 1.24, net/http
+    imported by example.com/shop/cmd/api
+    Go 1.26 added a new httpcookiemaxnum setting that controls the maximum number of cookies that net/http will accept when parsing HTTP headers.
+    https://go.dev/doc/godebug#go-126
+
+multipathtcp  0 -> default  Go 1.24, net
+    imported by example.com/shop/cmd/api
+    Go 1.24 added new values for the multipathtcp setting.
+    https://go.dev/doc/godebug#go-124
+
+randseednop  0 -> default  Go 1.24, math/rand
+    imported by all 2 binaries
+    Go 1.24 changed the global math/rand.Seed to be a no-op.
+    https://go.dev/doc/godebug#go-124
+
+rsa1024min  0 -> default  Go 1.24, crypto/rsa
+    imported by example.com/shop/cmd/api
+    Go 1.24 changed crypto/rsa to require RSA keys to be at least 1024 bits.
+    https://go.dev/doc/godebug#go-124
+
+tlsmlkem  0 -> default  Go 1.24, crypto/tls
+    imported by example.com/shop/cmd/api
+    Go 1.24 enabled the post-quantum key exchange mechanism X25519MLKEM768 by default.
+    https://go.dev/doc/godebug#go-124
+
+urlmaxqueryparams  0 -> default  Go 1.24, net/url
+    imported by example.com/shop/cmd/api
+    Go 1.26 added a new urlmaxqueryparams setting that controls the maximum number of query parameters that net/url will accept when parsing a URL-encoded query string.
+    https://go.dev/doc/godebug#go-126
+
+x509rsacrt  0 -> default  Go 1.24, crypto/x509
+    imported by example.com/shop/cmd/api
+    Go 1.24 made ParsePKCS1PrivateKey use and validate the CRT parameters in the encoded private key.
+    https://go.dev/doc/godebug#go-124
+
+x509usepolicies  0 -> default  Go 1.24, crypto/x509
+    imported by example.com/shop/cmd/api
+    Go 1.24 changes the default value of the x509usepolicies setting.
+    https://go.dev/doc/godebug#go-124
+
+Changes the go command, not your binaries:
+  gotestjsonbuildtext  1 -> default  Go 1.24
+    Go 1.24 changed the behavior of go test -json to emit build errors as JSON instead of text.
+
+To keep the old behavior of a setting after the bump, pin it in go.mod:
+
+    godebug (
+        httplaxcontentlength=1
+        httpmuxgo121=1
+        httpservecontentkeepheaders=1
+        winreadlinkvolume=0
+        winsymlink=0
+        x509negativeserial=1
+        httpcookiemaxnum=0
+        multipathtcp=0
+        randseednop=0
+        rsa1024min=0
+        tlsmlkem=0
+        urlmaxqueryparams=0
+        x509rsacrt=0
+        x509usepolicies=0
+        gotestjsonbuildtext=1
+    )
+
+Note: Crossing Go 1.22 also changes the language: each loop iteration gets its own loop variable in this module's code. That isn't a GODEBUG setting, so it isn't listed above. See https://go.dev/blog/loopvar-preview.

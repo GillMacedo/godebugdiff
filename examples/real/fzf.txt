@@ -1,0 +1,59 @@
+go 1.23.0 -> 1.27 in github.com/junegunn/fzf (go1.27.3, 1 binary)
+
+20 GODEBUG defaults change. 5 reach a package your binaries import.
+
+multipathtcp  0 -> default  Go 1.24, net
+    imported by github.com/junegunn/fzf
+    Go 1.24 added new values for the multipathtcp setting.
+    https://go.dev/doc/godebug#go-124
+
+containermaxprocs  0 -> default  Go 1.25, runtime
+    imported by github.com/junegunn/fzf
+    Go 1.25 added a new containermaxprocs setting that controls whether the Go runtime will consider cgroup CPU limits when setting the default GOMAXPROCS.
+    https://go.dev/doc/godebug#go-125
+
+decoratemappings  0 -> default  Go 1.25, runtime
+    imported by github.com/junegunn/fzf
+    Go 1.25 added a new decoratemappings setting that controls whether the Go runtime annotates OS anonymous memory mappings with context about their purpose.
+    https://go.dev/doc/godebug#go-125
+
+updatemaxprocs  0 -> default  Go 1.25, runtime
+    imported by github.com/junegunn/fzf
+    Go 1.25 added a new updatemaxprocs setting that controls whether the Go runtime will periodically update GOMAXPROCS for new CPU affinity or cgroup limits.
+    https://go.dev/doc/godebug#go-125
+
+tracebacklabels  0 -> default  Go 1.27, runtime
+    imported by github.com/junegunn/fzf
+    Go 1.26 added a new tracebacklabels setting that controls the inclusion of goroutine labels set through the the runtime/pprof package.
+    https://go.dev/doc/godebug#go-126
+
+Changes the go command, not your binaries:
+  gotestjsonbuildtext  1 -> default  Go 1.24
+    Go 1.24 changed the behavior of go test -json to emit build errors as JSON instead of text.
+
+No binary imports the package, so no effect:
+  httpcookiemaxnum (net/http)
+  randseednop (math/rand)
+  rsa1024min (crypto/rsa)
+  tlsmlkem (crypto/tls)
+  urlmaxqueryparams (net/url)
+  x509rsacrt (crypto/x509)
+  x509usepolicies (crypto/x509)
+  tlssha1 (crypto/tls)
+  x509sha256skid (crypto/x509)
+  cryptocustomrand (crypto)
+  httpservecontentmaxranges (net/http)
+  tlssecpmlkem (crypto/tls)
+  urlstrictcolons (net/url)
+  x509sslcertoverrideplatform (crypto/x509)
+
+To keep the old behavior of a setting after the bump, pin it in go.mod:
+
+    godebug (
+        multipathtcp=0
+        containermaxprocs=0
+        decoratemappings=0
+        updatemaxprocs=0
+        tracebacklabels=0
+        gotestjsonbuildtext=1
+    )

@@ -1,0 +1,22 @@
+go 1.26.0 -> 1.27 in github.com/rclone/rclone (go1.27.3, 7 binaries)
+
+2 GODEBUG defaults change. 2 reach a package your binaries import.
+
+tracebacklabels  0 -> default  Go 1.27, runtime
+    imported by all 7 binaries
+    Go 1.26 added a new tracebacklabels setting that controls the inclusion of goroutine labels set through the the runtime/pprof package.
+    https://go.dev/doc/godebug#go-126
+
+x509sslcertoverrideplatform  0 -> default  Go 1.27, crypto/x509
+    imported by github.com/rclone/rclone, github.com/rclone/rclone/cmd/test/info/internal/build_csv, github.com/rclone/rclone/fstest/test_all, github.com/rclone/rclone/lib/encoder/internal/gen and 2 more
+    Go 1.27 added a new x509sslcertoverrideplatform setting that controls whether crypto/x509 will load roots from disk on Windows and Darwin when SSL_CERT_FILE or SSL_CERT_DIR are set.
+    https://go.dev/doc/godebug#go-127
+
+To keep the old behavior of a setting after the bump, pin it in go.mod:
+
+    godebug (
+        tracebacklabels=0
+        x509sslcertoverrideplatform=0
+    )
+
+Note: go.mod already pins multipathtcp=0, x509negativeserial=1. Pinned settings don't change with the go line, so they aren't listed.
