@@ -4,6 +4,11 @@ All notable changes are documented here, in [Keep a Changelog](https://keepachan
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-02
+
+### Changed
+- Mark win* GODEBUG settings as Windows-only (#7)
+
 ## [0.1.0] - 2026-11-02
 ### Added
 - Lists GODEBUG defaults that change between two go lines, from the installed toolchain's `go list` output, offline and without editing go.mod

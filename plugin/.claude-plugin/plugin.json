@@ -1,6 +1,6 @@
 {
   "name": "godebugdiff",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Before you raise the go line in go.mod, list the GODEBUG behavior defaults that change, which binaries import each affected package, and the godebug lines that keep the old behavior.",
   "author": {
     "name": "Giulliano Macedo",
