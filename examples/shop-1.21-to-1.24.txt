@@ -1,4 +1,4 @@
-go 1.21 -> 1.24 in example.com/shop (go1.27.3, 2 binaries)
+go 1.21 -> 1.24 in example.com/shop (go1.27.4, 2 binaries)
 
 15 GODEBUG defaults change. 14 reach a package your binaries import.
 
@@ -17,12 +17,12 @@ httpservecontentkeepheaders  1 -> default  Go 1.23, net/http
     Go 1.23 changed net/http.ServeContent, net/http.ServeFile, and net/http.ServeFS to remove Cache-Control, Content-Encoding, Etag, and Last-Modified headers when serving an error.
     https://go.dev/doc/godebug#go-123
 
-winreadlinkvolume  0 -> default  Go 1.23, os
+winreadlinkvolume  0 -> default  Go 1.23, os (Windows only)
     imported by all 2 binaries
     Go 1.23 changed os.Readlink and filepath.EvalSymlinks to avoid trying to normalize volumes to drive letters, which was not always even possible.
     https://go.dev/doc/godebug#go-123
 
-winsymlink  0 -> default  Go 1.23, os
+winsymlink  0 -> default  Go 1.23, os (Windows only)
     imported by all 2 binaries
     Go 1.23 changed the mode bits reported by os.Lstat and os.Stat for reparse points, which can be controlled with the winsymlink setting.
     https://go.dev/doc/godebug#go-123

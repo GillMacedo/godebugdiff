@@ -67,7 +67,7 @@ type Change struct {
 	After       string   `json:"after"`
 	ReachedBy   []string `json:"reachedBy"`             // binaries that import Package
 	GoCommand   bool     `json:"goCommand"`             // the setting controls the go command, not binaries
-	WindowsOnly bool     `json:"windowsOnly,omitempty"` // name starts with win; Linux services can skip
+	WindowsOnly bool     `json:"windowsOnly,omitempty"` // Windows-specific setting; relevance depends on the deployment platform
 	Doc         string   `json:"doc,omitempty"`
 	URL         string   `json:"url,omitempty"`
 }

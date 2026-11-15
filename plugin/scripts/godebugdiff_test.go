@@ -273,3 +273,24 @@ func TestWindowsOnly(t *testing.T) {
 		t.Fatalf("JSON missing windowsOnly: %s", enc)
 	}
 }
+
+func TestCompareWindowsOnly(t *testing.T) {
+	before := []Binary{{ImportPath: "example.com/app", Godebug: parseGodebug("winreadlinkvolume=0,httpmuxgo121=1"), Deps: map[string]bool{"os": true, "net/http": true}}}
+	after := []Binary{{ImportPath: "example.com/app", Godebug: parseGodebug(""), Deps: map[string]bool{"os": true, "net/http": true}}}
+	table := map[string]Setting{
+		"winreadlinkvolume": {Name: "winreadlinkvolume", Package: "os", Changed: 26, Old: "0"},
+		"httpmuxgo121":      {Name: "httpmuxgo121", Package: "net/http", Changed: 22, Old: "1"},
+	}
+	changes, _ := compare(before, after, table, nil)
+	if len(changes) != 2 {
+		t.Fatalf("changes: %+v", changes)
+	}
+	for _, c := range changes {
+		if c.WindowsOnly != (c.Name == "winreadlinkvolume") {
+			t.Errorf("platform classification: %+v", c)
+		}
+		if !reflect.DeepEqual(c.ReachedBy, []string{"example.com/app"}) {
+			t.Errorf("reachedBy: %+v", c)
+		}
+	}
+}
