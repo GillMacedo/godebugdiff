@@ -1,4 +1,4 @@
-go 1.15 -> 1.27 in github.com/spf13/cobra (go1.27.3, 2 test binaries)
+go 1.15 -> 1.27 in github.com/spf13/cobra (go1.27.4, 2 test binaries)
 
 28 GODEBUG defaults change. 13 reach a package your test binaries import.
 
@@ -12,12 +12,12 @@ panicnil  1 -> default  Go 1.21, runtime
     Go 1.21 made it a run-time error to call panic with a nil interface value, controlled by the panicnil setting.
     https://go.dev/doc/godebug#go-121
 
-winreadlinkvolume  0 -> default  Go 1.23, os
+winreadlinkvolume  0 -> default  Go 1.23, os (Windows only)
     imported by all 2 test binaries
     Go 1.23 changed os.Readlink and filepath.EvalSymlinks to avoid trying to normalize volumes to drive letters, which was not always even possible.
     https://go.dev/doc/godebug#go-123
 
-winsymlink  0 -> default  Go 1.23, os
+winsymlink  0 -> default  Go 1.23, os (Windows only)
     imported by all 2 test binaries
     Go 1.23 changed the mode bits reported by os.Lstat and os.Stat for reparse points, which can be controlled with the winsymlink setting.
     https://go.dev/doc/godebug#go-123

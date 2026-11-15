@@ -20,3 +20,5 @@ Real output from `godebugdiff` with no flags, on Go 1.27.3, on shallow clones of
 | `rclone.txt` | github.com/rclone/rclone | `f0cb5dd` | MIT |
 
 To redo one: clone the project, check out the commit, run `go mod download`, then `go run ./plugin/scripts PATH` from this repo. The results depend on the toolchain you run.
+
+The shop output and `cobra.txt` were regenerated on 2026-11-15 with Go 1.27.4. The Cobra checkout remains at the commit listed above; other saved real-project outputs retain their original toolchain.
