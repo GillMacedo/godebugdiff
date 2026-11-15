@@ -4,6 +4,11 @@ All notable changes are documented here, in [Keep a Changelog](https://keepachan
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-15
+
+### Changed
+- Cover Windows classification and refresh saved outputs (#12)
+
 ## [0.1.1] - 2026-11-02
 
 ### Changed
